@@ -1,115 +1,201 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
 
-void main() {
-  runApp(const MyApp());
+import 'package:flutter/services.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:sqflite/sqflite.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  runApp(const FibonacciApplication());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+class FibonacciApplication extends StatelessWidget {
+  const FibonacciApplication({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const HomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class HomePage extends StatefulWidget {
+  const HomePage({Key? key}) : super(key: key);
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _HomePageState extends State<HomePage> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  late final TextEditingController _fibonacciLengthController;
+
+  DateTime now = DateTime.now();
+
+  String? formattedDate;
+
+  @override
+  void initState() {
+    _fibonacciLengthController = TextEditingController();
+    formattedDate = DateFormat("d MMM yyyy").format(now);
+    super.initState();
   }
 
   @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+  void dispose() {
+    _fibonacciLengthController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: Form(
+            key: _formKey,
+            child: TextFormField(
+              controller: _fibonacciLengthController,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return "Please enter a number";
+                }
+                return null;
+              },
+              decoration: const InputDecoration(
+                  hintText: " Please enter a valid number and press the button ...",
+                  hintStyle: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                  )),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        body: SafeArea(
+          child: FutureBuilder<List<FibonacciModel>>(
+              future: DatabaseHelper._instance.fetchAll(),
+              builder: (BuildContext context, AsyncSnapshot<List<FibonacciModel>> snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: Text("Loading ..."));
+                }
+                return snapshot.data!.isEmpty
+                    ? const Center(child: Text('No result in List.'))
+                    : ListView(
+                        children: snapshot.data!.map((element) {
+                          return ListTile(
+                            title: Text("${element.id} -   ${element.result.toString()}"),
+                            trailing: Text(element.time),
+                          );
+                        }).toList(),
+                      );
+              }),
+        ),
+        floatingActionButton: FloatingActionButton(
+          child: const Icon(Icons.calculate_outlined),
+          onPressed: () async {
+            if (_formKey.currentState!.validate()) {
+              int firstNumber = 0, secondNumber = 1, nextNumber = 0;
+              for (int i = 3; i <= int.parse(_fibonacciLengthController.text); i++) {
+                nextNumber = firstNumber + secondNumber;
+                firstNumber = secondNumber;
+                secondNumber = nextNumber;
+              }
+              await DatabaseHelper._instance
+                  .insert(FibonacciModel(result: nextNumber.toString(), time: formattedDate!));
+              setState(() {
+                _fibonacciLengthController.clear();
+              });
+            }
+          },
+        ),
+      );
+}
+
+class FibonacciModel {
+  final int? id;
+  final String? result;
+  final String time;
+
+  const FibonacciModel({
+    this.id,
+    required this.result,
+    required this.time,
+  });
+
+  factory FibonacciModel.fromMap(Map<String, dynamic> json) => FibonacciModel(
+        id: json["id"],
+        result: json["result"],
+        time: json["time"],
+      );
+
+  Map<String, dynamic> toMap() {
+    return {
+      "id": id,
+      "result": result,
+      "time": time,
+    };
+  }
+}
+
+class DatabaseHelper {
+  DatabaseHelper._();
+  static final DatabaseHelper _instance = DatabaseHelper._();
+
+  static const _dbName = "fibonacci.db";
+  static const _dbVersion = 1;
+  static const _tableName = "fibonacci";
+  static const columnId = "id";
+  static const columnResult = "result";
+  static const columnTime = "time";
+
+  static Database? _db;
+
+  Future<Database> get database async => _db ?? await _initiateDb();
+
+  _initiateDb() async {
+    Directory directory = await getApplicationDocumentsDirectory();
+    String path = join(directory.path, _dbName);
+    return await openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: _onCreate,
     );
+  }
+
+  Future _onCreate(Database db, int version) {
+    return db.execute('''
+      CREATE TABLE $_tableName(
+      $columnId INTEGER PRIMARY KEY,
+      $columnResult TEXT NOT NULL,
+      $columnTime TEXT NOT NULL
+      ) 
+      ''');
+  }
+
+  Future<int> insert(FibonacciModel model) async {
+    Database db = await _instance.database;
+    return await db.insert(_tableName, model.toMap());
+  }
+
+  Future<List<FibonacciModel>> fetchAll() async {
+    Database db = await _instance.database;
+    var result = await db.query(_tableName, orderBy: "id");
+    List<FibonacciModel> resultList =
+        result.isNotEmpty ? result.map((element) => FibonacciModel.fromMap(element)).toList() : [];
+    return resultList;
   }
 }
