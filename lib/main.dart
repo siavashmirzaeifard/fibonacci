@@ -97,8 +97,13 @@ class _HomePageState extends State<HomePage> {
                     : ListView(
                         children: snapshot.data!.map((element) {
                           return ListTile(
-                            title: Text("${element.id} -   ${element.result.toString()}"),
-                            trailing: Text(element.time),
+                            title: Text(
+                              "${element.id} -   Your number ${element.input.toString()}, result : ${element.result.toString()}",
+                              maxLines: 1,
+                              softWrap: true,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(element.time),
                           );
                         }).toList(),
                       );
@@ -114,8 +119,11 @@ class _HomePageState extends State<HomePage> {
                 firstNumber = secondNumber;
                 secondNumber = nextNumber;
               }
-              await DatabaseHelper._instance
-                  .insert(FibonacciModel(result: nextNumber.toString(), time: formattedDate!));
+              await DatabaseHelper._instance.insert(FibonacciModel(
+                result: nextNumber.toString(),
+                time: formattedDate!,
+                input: _fibonacciLengthController.text,
+              ));
               setState(() {
                 _fibonacciLengthController.clear();
               });
@@ -128,16 +136,19 @@ class _HomePageState extends State<HomePage> {
 class FibonacciModel {
   final int? id;
   final String? result;
+  final String? input;
   final String time;
 
   const FibonacciModel({
     this.id,
+    required this.input,
     required this.result,
     required this.time,
   });
 
   factory FibonacciModel.fromMap(Map<String, dynamic> json) => FibonacciModel(
         id: json["id"],
+        input: json["input"],
         result: json["result"],
         time: json["time"],
       );
@@ -145,6 +156,7 @@ class FibonacciModel {
   Map<String, dynamic> toMap() {
     return {
       "id": id,
+      "input": input,
       "result": result,
       "time": time,
     };
@@ -159,6 +171,7 @@ class DatabaseHelper {
   static const _dbVersion = 1;
   static const _tableName = "fibonacci";
   static const columnId = "id";
+  static const columnInput = "input";
   static const columnResult = "result";
   static const columnTime = "time";
 
@@ -181,6 +194,7 @@ class DatabaseHelper {
       CREATE TABLE $_tableName(
       $columnId INTEGER PRIMARY KEY,
       $columnResult TEXT NOT NULL,
+      $columnInput TEXT NOT NULL,
       $columnTime TEXT NOT NULL
       ) 
       ''');
