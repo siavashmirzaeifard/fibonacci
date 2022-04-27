@@ -1,6 +1,6 @@
 # fibonacci
 
-Sample Fibonacci Flutter project for SyncVR.
+Sample Fibonacci Flutter project with SQFLite.
 
 ## Getting Started
 
